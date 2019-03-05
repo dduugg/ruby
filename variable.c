@@ -264,21 +264,22 @@ typedef VALUE (*path_cache_func)(VALUE obj, VALUE name);
 static VALUE
 rb_tmp_class_path(VALUE klass, int *permanent, path_cache_func cache_path)
 {
-    if (rb_ivar_get(klass, tmp_can_have_classpath) != RUBY_Qtrue) {
-        rb_warn("Cannot have classpath, bailing");
-        return RUBY_Qnil;
-    }
+//    VALUE iv = rb_ivar_lookup(obj, id, Qundef);
+
+//    if (false) {
+
+    VALUE result;
 
     VALUE path = classname(klass, permanent);
     st_data_t n = (st_data_t)path;
 
     if (!NIL_P(path)) {
-	return path;
+	result = path;
     }
-    if (RCLASS_IV_TBL(klass) && st_lookup(RCLASS_IV_TBL(klass),
+    else if (RCLASS_IV_TBL(klass) && st_lookup(RCLASS_IV_TBL(klass),
 					  (st_data_t)tmp_classpath, &n)) {
 	*permanent = 0;
-	return (VALUE)n;
+	result = (VALUE)n;
     }
     else {
 	if (RB_TYPE_P(klass, T_MODULE)) {
@@ -291,8 +292,24 @@ rb_tmp_class_path(VALUE klass, int *permanent, path_cache_func cache_path)
 	    }
 	}
 	*permanent = 0;
-	return cache_path(klass, path);
+	result = cache_path(klass, path);
     }
+
+
+
+    st_table *ivtbl;
+    st_data_t nn;
+
+    if (RCLASS_EXT(klass) && (ivtbl = RCLASS_IV_TBL(klass))
+            && st_lookup(ivtbl, (st_data_t)tmp_can_have_classpath, &nn))  {
+        rb_warn("Cannot have classpath, bailing");
+//        return RUBY_Qnil;
+        if (result != RUBY_Qnil) {
+            abort();
+        }
+    }
+
+    return result;
 }
 
 static VALUE
@@ -2711,6 +2728,16 @@ rb_const_set(VALUE klass, ID id, VALUE val)
 		 QUOTE_ID(id));
     }
 
+        if (RB_TYPE_P(val, T_MODULE)) {
+
+            // @todo add new name
+
+            // ac->value->names
+            rb_ivar_set(val, tmp_can_have_classpath, RUBY_Qtrue);
+
+    //        st_lookup(RCLASS_IV_TBL(ac->value))
+        }
+
     check_before_mod_set(klass, id, val, "constant");
     if (!tbl) {
 	RCLASS_CONST_TBL(klass) = tbl = rb_id_table_create(0);
@@ -2781,16 +2808,6 @@ const_tbl_update(struct autoload_const *ac)
     struct rb_id_table *tbl = RCLASS_CONST_TBL(klass);
     rb_const_flag_t visibility = ac->flag;
     rb_const_entry_t *ce;
-
-    if (RB_TYPE_P(ac->value, T_MODULE)) {
-
-        // @todo add new name
-
-        // ac->value->names
-        rb_ivar_set(klass, tmp_can_have_classpath, RUBY_Qtrue);
-
-//        st_lookup(RCLASS_IV_TBL(ac->value))
-    }
 
     if (rb_id_table_lookup(tbl, id, &value)) {
 	ce = (rb_const_entry_t *)value;
