@@ -24,7 +24,7 @@
 #include "vm_core.h"
 
 static struct rb_id_table *rb_global_tbl;
-static ID autoload, classpath, tmp_classpath, classid;
+static ID autoload, classpath, tmp_classpath, classid, tmp_can_have_classpath;
 static VALUE autoload_featuremap; /* feature => autoload_i */
 
 static void check_before_mod_set(VALUE, ID, VALUE, const char *);
@@ -60,6 +60,8 @@ Init_var_tables(void)
     tmp_classpath = rb_intern_const("__tmp_classpath__");
     /* __classid__: name given to class/module under an anonymous namespace */
     classid = rb_intern_const("__classid__");
+
+    tmp_can_have_classpath = rb_intern_const("__tmp_can_have_classpath__");
 }
 
 struct fc_result {
@@ -262,6 +264,11 @@ typedef VALUE (*path_cache_func)(VALUE obj, VALUE name);
 static VALUE
 rb_tmp_class_path(VALUE klass, int *permanent, path_cache_func cache_path)
 {
+    if (rb_ivar_get(klass, tmp_can_have_classpath) != RUBY_Qtrue) {
+        rb_warn("Cannot have classpath, bailing");
+        return RUBY_Qnil;
+    }
+
     VALUE path = classname(klass, permanent);
     st_data_t n = (st_data_t)path;
 
@@ -2775,6 +2782,16 @@ const_tbl_update(struct autoload_const *ac)
     rb_const_flag_t visibility = ac->flag;
     rb_const_entry_t *ce;
 
+    if (RB_TYPE_P(ac->value, T_MODULE)) {
+
+        // @todo add new name
+
+        // ac->value->names
+        rb_ivar_set(klass, tmp_can_have_classpath, RUBY_Qtrue);
+
+//        st_lookup(RCLASS_IV_TBL(ac->value))
+    }
+
     if (rb_id_table_lookup(tbl, id, &value)) {
 	ce = (rb_const_entry_t *)value;
 	if (ce->value == Qundef) {
@@ -2790,6 +2807,9 @@ const_tbl_update(struct autoload_const *ac)
 	    autoload_delete(klass, id);
 	}
 	else {
+	    // @todo remove existing alias
+//	    rb_ivar_delete(ce->value, )
+
 	    VALUE name = QUOTE_ID(id);
 	    visibility = ce->flag;
 	    if (klass == rb_cObject)
