@@ -186,6 +186,12 @@ classname(VALUE klass, int *permanent)
     VALUE path = Qnil;
     st_data_t n;
 
+    VALUE fieldCache = rb_ivar_get(klass, tmp_can_have_classpath);
+    if (fieldCache != RUBY_Qtrue && klass != rb_cClass && klass != rb_cModule && klass != rb_cObject && klass != rb_cBasicObject){
+        return RUBY_Qnil;
+    }
+
+
     if (!klass) klass = rb_cObject;
     *permanent = 1;
     if (RCLASS_IV_TBL(klass)) {
@@ -296,18 +302,6 @@ rb_tmp_class_path(VALUE klass, int *permanent, path_cache_func cache_path)
     }
 
 
-
-    st_table *ivtbl;
-    st_data_t nn;
-
-    if (RCLASS_EXT(klass) && (ivtbl = RCLASS_IV_TBL(klass))
-            && st_lookup(ivtbl, (st_data_t)tmp_can_have_classpath, &nn))  {
-        rb_warn("Cannot have classpath, bailing");
-//        return RUBY_Qnil;
-        if (result != RUBY_Qnil) {
-            abort();
-        }
-    }
 
     return result;
 }
