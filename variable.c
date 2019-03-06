@@ -2722,7 +2722,7 @@ rb_const_set(VALUE klass, ID id, VALUE val)
 		 QUOTE_ID(id));
     }
 
-        if (RB_TYPE_P(val, T_MODULE)) {
+        if (RB_TYPE_P(val, T_MODULE) || RB_TYPE_P(val, T_CLASS)) {
 
             // @todo add new name
 
