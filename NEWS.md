@@ -16,9 +16,9 @@ Note: We're only listing outstanding class updates.
 
 * Binding
 
-    * `Binding#local_variables` does no longer include numbered parameters.
+    * `Binding#local_variables` no longer includes numbered parameters.
       Also, `Binding#local_variable_get` and `Binding#local_variable_set` reject
-      to handle numbered parameters.  [[Bug #21049]]
+      numbered parameters.  [[Bug #21049]]
 
 * IO
 
@@ -86,7 +86,7 @@ Note: We're only listing outstanding class updates.
 
 ## Stdlib updates
 
-The following bundled gems are promoted from default gems.
+The following bundled gems are promoted from default gems:
 
 * ostruct 0.6.1
 * pstore 0.2.0
@@ -105,11 +105,11 @@ Other changes are listed in the following sections. We also listed release
 history from the previous bundled version that is Ruby 3.3.0 if it has GitHub
 releases.
 
-The following default gem is added.
+The following default gem is added:
 
 * win32-registry 0.1.0
 
-The following default gems are updated.
+The following default gems are updated:
 
 * RubyGems 3.7.0.dev
 * bundler 2.7.0.dev
@@ -122,10 +122,10 @@ The following default gems are updated.
 * strscan 3.1.5.dev
 * uri 1.0.3
 
-The following bundled gems are added.
+The following bundled gems are added:
 
 
-The following bundled gems are updated.
+The following bundled gems are updated:
 
 * minitest 5.25.5
 * rake 13.3.0
@@ -145,7 +145,7 @@ The following bundled gems are updated.
 
 ## Compatibility issues
 
-* The following methdos were removed from Ractor due because of `Ractor::Port`:
+* The following methods were removed from Ractor due because of `Ractor::Port`:
 
     * `Ractor.yield`
     * `Ractor#take`
