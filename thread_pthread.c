@@ -1442,14 +1442,9 @@ ruby_ppoll(struct pollfd *fds, nfds_t nfds,
 // fork read-write lock (only for pthread)
 static pthread_rwlock_t rb_thread_fork_rw_lock = PTHREAD_RWLOCK_INITIALIZER;
 
-// registered threads waiting to be joined, one per slot
-#define EXITING_THREAD_SLOTS 8
-static rb_nativethread_lock_t exiting_thread_lock = RB_NATIVETHREAD_LOCK_INIT;
-static struct {
-    pthread_t thread;
-    bool registered;
-} exiting_threads[EXITING_THREAD_SLOTS];
-static unsigned int exiting_thread_next;
+// the registered thread waiting to be joined, or NULL; no pthread_t is 0
+static void *exiting_thread;
+STATIC_ASSERT(pthread_t_fits_in_pointer, sizeof(pthread_t) <= sizeof(void *));
 
 void
 rb_thread_release_fork_lock(void)
@@ -1486,31 +1481,21 @@ rb_thread_prevent_fork(void *(*func)(void *), void *data)
 }
 
 static void
-join_exiting_thread(pthread_t thread)
+join_exiting_thread(void *thread)
 {
     int r;
-    if ((r = pthread_join(thread, NULL))) {
+    if (thread && (r = pthread_join((pthread_t)(uintptr_t)thread, NULL))) {
         rb_bug_errno("pthread_join", r);
     }
 }
 
 // Called within rb_thread_prevent_fork() by a joinable thread just before it
-// exits.  The oldest slot's previous holder has almost always exited by then,
-// so exiting threads don't wait on each other.
+// exits.  The thread it replaces in the slot has usually exited by then.
 void
 rb_thread_register_exiting(void)
 {
-    pthread_t self = pthread_self();
-
-    rb_native_mutex_lock(&exiting_thread_lock);
-    unsigned int i = exiting_thread_next++ % EXITING_THREAD_SLOTS;
-    bool registered = exiting_threads[i].registered;
-    pthread_t thread = exiting_threads[i].thread;
-    exiting_threads[i].thread = self;
-    exiting_threads[i].registered = true;
-    rb_native_mutex_unlock(&exiting_thread_lock);
-
-    if (registered) join_exiting_thread(thread);
+    void *self = (void *)(uintptr_t)pthread_self();
+    join_exiting_thread(RUBY_ATOMIC_PTR_EXCHANGE(exiting_thread, self));
 }
 
 void
@@ -1523,13 +1508,8 @@ rb_thread_acquire_fork_lock(void)
 
     // A registered thread may still be exiting, and glibc's thread exit takes
     // the resolver configuration lock, which fork does not reset.  None can
-    // register while this lock is held, so the slots need no mutex here.
-    for (int i = 0; i < EXITING_THREAD_SLOTS; i++) {
-        if (exiting_threads[i].registered) {
-            exiting_threads[i].registered = false;
-            join_exiting_thread(exiting_threads[i].thread);
-        }
-    }
+    // register while this lock is held.
+    join_exiting_thread(RUBY_ATOMIC_PTR_EXCHANGE(exiting_thread, NULL));
 }
 
 // thread internal event hooks (only for pthread)
