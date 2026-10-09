@@ -1443,7 +1443,7 @@ ruby_ppoll(struct pollfd *fds, nfds_t nfds,
 static pthread_rwlock_t rb_thread_fork_rw_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 // the registered thread waiting to be joined, or NULL; no pthread_t is 0
-static void *exiting_thread;
+static void *last_exiting_thread;
 STATIC_ASSERT(pthread_t_fits_in_pointer, sizeof(pthread_t) <= sizeof(void *));
 
 void
@@ -1481,11 +1481,14 @@ rb_thread_prevent_fork(void *(*func)(void *), void *data)
 }
 
 static void
-join_exiting_thread(void *thread)
+thread_register_exiting(void *thread)
 {
-    int r;
-    if (thread && (r = pthread_join((pthread_t)(uintptr_t)thread, NULL))) {
-        rb_bug_errno("pthread_join", r);
+    void *previous_thread = RUBY_ATOMIC_PTR_EXCHANGE(last_exiting_thread, thread);
+    if (previous_thread) {
+        int r;
+        if ((r = pthread_join((pthread_t)(uintptr_t)previous_thread, NULL))) {
+            rb_bug_errno("pthread_join", r);
+        }
     }
 }
 
@@ -1494,8 +1497,7 @@ join_exiting_thread(void *thread)
 void
 rb_thread_register_exiting(void)
 {
-    void *self = (void *)(uintptr_t)pthread_self();
-    join_exiting_thread(RUBY_ATOMIC_PTR_EXCHANGE(exiting_thread, self));
+    thread_register_exiting((void *)(uintptr_t)pthread_self());
 }
 
 void
@@ -1509,7 +1511,7 @@ rb_thread_acquire_fork_lock(void)
     // A registered thread may still be exiting, and glibc's thread exit takes
     // the resolver configuration lock, which fork does not reset.  None can
     // register while this lock is held.
-    join_exiting_thread(RUBY_ATOMIC_PTR_EXCHANGE(exiting_thread, NULL));
+    thread_register_exiting(NULL);
 }
 
 // thread internal event hooks (only for pthread)
